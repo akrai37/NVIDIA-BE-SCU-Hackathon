@@ -54,4 +54,9 @@ async def analyze_document(file: UploadFile = File(...)) -> DocumentAnalysisEnve
 
     filename = file.filename or "uploaded.pdf"
 
-    return await analyzer.analyze(file_bytes=contents, filename=filename)
+    return await analyzer.analyze(
+        file_bytes=contents,
+        filename=filename,
+        file_size=len(contents),
+        content_type=file.content_type or "application/octet-stream",
+    )

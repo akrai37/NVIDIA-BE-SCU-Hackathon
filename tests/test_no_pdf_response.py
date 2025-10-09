@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.schemas.document import DocumentBundle, TextChunk
 from app.services.analysis_service import DocumentAnalyzer
 from app.schemas.api import InsightPriority
@@ -55,3 +57,20 @@ def test_to_response_without_pdf():
     important_chunks = [chunk for chunk in resp.categorized_chunks if chunk.key == InsightPriority.important]
     assert len(important_chunks) == 1
     assert important_chunks[0].chunk_id == "chunk-2"
+
+    processing = analyzer._to_processing_result(
+        bundle=bundle,
+        legacy=resp,
+        payload=fake_payload,
+        filename="testdoc.pdf",
+        file_size=2048,
+        content_type="application/pdf",
+        uploaded_at=datetime(2025, 1, 1, 12, 0, 0),
+    )
+
+    assert processing.document.name == "testdoc.pdf"
+    assert processing.document.size == 2048
+    assert processing.summary.key_points == resp.key_highlights
+    assert processing.actionable_steps
+    assert processing.pipeline_status and len(processing.pipeline_status) == 10
+    assert processing.extracted_data.deadlines

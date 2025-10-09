@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
 
 class InsightPriority(str, Enum):
@@ -69,6 +70,90 @@ class DocumentAnalysisResponse(BaseModel):
     categorized_chunks: List[CategorizedChunk] = Field(default_factory=list)
 
 
+class DocumentMetadata(BaseModel):
+    id: str
+    name: str
+    size: int
+    type: str
+    uploaded_at: datetime = Field(alias="uploadedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @field_serializer("uploaded_at", when_used="json")
+    def _serialize_uploaded_at(self, value: datetime) -> str:
+        return value.isoformat()
+
+
+class DocumentClassification(BaseModel):
+    category: str
+    confidence: float
+    subcategories: List[str] = Field(default_factory=list)
+
+
+class SectionSummary(BaseModel):
+    title: str
+    content: str
+    importance: str
+
+
+class DocumentSummary(BaseModel):
+    title: str
+    sections: List[SectionSummary] = Field(default_factory=list)
+    key_points: List[str] = Field(default_factory=list, alias="keyPoints")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class DeadlineInfo(BaseModel):
+    description: str
+    date: str
+    priority: str
+
+
+class FinancialFigure(BaseModel):
+    label: str
+    amount: float
+    currency: str
+    context: str
+
+
+class ExtractedDataAggregate(BaseModel):
+    deadlines: List[DeadlineInfo] = Field(default_factory=list)
+    eligibility: List[str] = Field(default_factory=list)
+    financial_figures: List[FinancialFigure] = Field(default_factory=list, alias="financialFigures")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ActionableStep(BaseModel):
+    id: str
+    title: str
+    description: str
+    priority: str
+    estimated_time: str = Field(alias="estimatedTime")
+    completed: bool
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PipelineStageStatus(BaseModel):
+    stage: str
+    status: str
+    progress: int = 0
+    message: Optional[str] = None
+
+
+class ProcessingResult(BaseModel):
+    document: DocumentMetadata
+    classification: DocumentClassification
+    summary: DocumentSummary
+    extracted_data: ExtractedDataAggregate = Field(alias="extractedData")
+    actionable_steps: List[ActionableStep] = Field(default_factory=list, alias="actionableSteps")
+    pipeline_status: List[PipelineStageStatus] = Field(default_factory=list, alias="pipelineStatus")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class GuidanceDebugPayload(BaseModel):
     """Optional debugging artefact that can be toggled on demand."""
 
@@ -80,5 +165,6 @@ class GuidanceDebugPayload(BaseModel):
 class DocumentAnalysisEnvelope(BaseModel):
     """Top-level response envelope so UI can evolve without breaking changes."""
 
-    result: DocumentAnalysisResponse
+    result: ProcessingResult
+    legacy: Optional[DocumentAnalysisResponse] = None
     debug: Optional[GuidanceDebugPayload] = None
