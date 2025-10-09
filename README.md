@@ -5,7 +5,7 @@ API backend for the NVIDIA Hackathon prototype that delivers real-time document 
 ## 🧱 Architecture overview
 
 1. **Upload** – UI sends the PDF to `POST /v1/documents/analyze`.
-2. **Parse** – `pypdf` streams text; empty pages trigger a helpful error (UI can prompt for OCR).
+2. **Parse** – `pypdf` streams text; if pages are image-only the backend renders them with `pypdfium2` and calls NVIDIA's OCR NIM to recover text.
 3. **Chunk** – `RecursiveCharacterTextSplitter` slices context-aware segments (~900 chars, 150 overlap).
 4. **Embed** – Chunks are embedded with NVIDIA's `embed-qa-4` model via NGC/NIM.
 5. **Store & Retrieve** – A lightweight cosine-similarity in-memory vector store powers targeted lookups.
@@ -26,6 +26,9 @@ Set the following environment variables before running the app:
 | `NVIDIA_BASE_URL` | (Optional) Override the default API gateway | `https://integrate.api.nvidia.com/v1` |
 | `NVIDIA_EMBEDDING_MODEL` | (Optional) Embedding model name | `nvidia/embed-qa-4` |
 | `NVIDIA_LLM_MODEL` | (Optional) Nemotron model name | `nvidia/nemotron-mini-4b-instruct` |
+| `ENABLE_OCR` | Enable NVIDIA OCR fallback for scanned PDFs | `true` |
+| `NVIDIA_OCR_MODEL` | (Optional) OCR NIM identifier | `nvidia/ocr-nvble-12b-vision` |
+| `OCR_RENDER_SCALE` | (Optional) Render scale when rasterising pages for OCR | `2.0` |
 
 ## 🚀 Run locally
 
@@ -68,7 +71,7 @@ A realistic grant template works best. To generate a quick sample for local test
 2. Export it as PDF and save it under `samples/grant_brief.pdf`.
 3. Call the endpoint using the `curl` example above.
 
-If OCR is required (e.g., scanned PDFs), run the file through an OCR tool before uploading. The service will emit a descriptive error if it cannot read any text so the UI can prompt the user to retry with OCR enabled.
+If OCR is required (e.g., scanned PDFs), set `ENABLE_OCR=true` and ensure your NVIDIA account has access to the specified OCR NIM. The backend will render image-only pages, submit them to the OCR model, and merge the results with native text extraction. Without an API key or OCR access the service falls back to its previous behaviour and returns a descriptive error when no readable text is found.
 
 ## 🧠 Prompt + retrieval strategy
 
@@ -88,6 +91,5 @@ Basic smoke tests can be run with `pytest` once you add test cases. During devel
 ## 🗺️ Next steps
 
 - Swap the in-memory store for a persistent vector DB (Milvus, pgvector, or Pinecone).
-- Plug in OCR (Tesseract via `pytesseract`) for image-heavy PDFs.
 - Stream partial results to the UI for better perceived latency.
 - Log rich telemetry (chunk spans, confidence) to help non-technical users trust the AI output.

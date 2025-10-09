@@ -33,6 +33,7 @@ from app.services.document_processor import DocumentProcessor
 from app.services.embedding_service import EmbeddingService
 from app.services.guidance_service import GuidanceService
 from app.services.vector_store import InMemoryVectorStore, ScoredChunk
+from app.services.ocr_service import NvidiaOcrService, OcrUnavailableError
 
 
 class DocumentAnalyzer:
@@ -40,7 +41,14 @@ class DocumentAnalyzer:
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.processor = DocumentProcessor()
+        ocr_service = None
+        self.ocr_service = None
+        if self.settings.enable_ocr:
+            try:
+                self.ocr_service = NvidiaOcrService()
+            except OcrUnavailableError:
+                self.ocr_service = None
+        self.processor = DocumentProcessor(ocr_service=self.ocr_service)
 
     async def analyze(
         self,
