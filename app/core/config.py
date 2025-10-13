@@ -36,11 +36,11 @@ class Settings(BaseModel):
         default=2.0, ge=1.0, le=4.0, alias="OCR_RENDER_SCALE"
     )
     session_timeout_minutes: int = Field(
-        default=30,
+        default=120,
         ge=5,
         le=1440,
         alias="SESSION_TIMEOUT_MINUTES",
-        description="Session timeout in minutes (5-1440, default: 30)",
+        description="Session timeout in minutes (5-1440, default: 120)",
     )
 
 
@@ -55,6 +55,6 @@ def get_settings() -> Settings:
             "NVIDIA_OCR_MODEL", "nvidia/ocr-nvble-12b-vision"
         ),
         "OCR_RENDER_SCALE": os.getenv("OCR_RENDER_SCALE", "2.0"),
-        "SESSION_TIMEOUT_MINUTES": os.getenv("SESSION_TIMEOUT_MINUTES", "30"),
+        "SESSION_TIMEOUT_MINUTES": os.getenv("SESSION_TIMEOUT_MINUTES", "120"),
     }
     return Settings.model_validate(data)

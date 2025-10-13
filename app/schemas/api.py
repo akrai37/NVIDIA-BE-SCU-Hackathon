@@ -47,6 +47,12 @@ class SourceReference(BaseModel):
     page_number: Optional[int] = None
     score: float
     preview: str
+    content: Optional[str] = Field(
+        None, description="Full chunk content for highlighting"
+    )
+    category: Optional[str] = Field(
+        None, description="Category: critical, important, or informational"
+    )
 
 
 class CategorizedChunk(BaseModel):
@@ -271,6 +277,44 @@ class SimplifiedDocumentResponse(BaseModel):
     page_count: int
     session_id: str = Field(..., description="Chat session ID for follow-up questions")
     structured_extraction: StructuredExtraction
+
+
+class UnifiedDocumentAnalysis(BaseModel):
+    """Unified document analysis response with clean structure."""
+
+    document_id: str
+    title: str
+    page_count: int
+    session_id: str = Field(..., description="Chat session ID for follow-up questions")
+
+    # Document metadata
+    document_name: str
+    document_size: int
+    document_type: str
+    uploaded_at: datetime = Field(alias="uploadedAt")
+
+    # Classification
+    category: str
+    confidence: float
+    subcategories: List[str] = Field(default_factory=list)
+
+    # Summary and insights
+    summary: str
+    key_highlights: List[str]
+    categorized_insights: CategorizedInsights
+
+    # Extracted structured data
+    extracted_data: List[ExtractedDataPoint]
+    recommended_next_steps: List[RecommendedStep]
+
+    # Source references - single unified list with all chunks
+    references: List[SourceReference]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @field_serializer("uploaded_at", when_used="json")
+    def _serialize_uploaded_at(self, value: datetime) -> str:
+        return value.isoformat()
 
 
 class DocumentAnalysisEnvelope(BaseModel):

@@ -4,10 +4,10 @@ from typing import Dict, Any
 
 from app.core.config import get_settings
 from app.schemas.api import (
-    DocumentAnalysisEnvelope,
     ChatRequest,
     ChatResponse,
     SimplifiedDocumentResponse,
+    UnifiedDocumentAnalysis,
 )
 from app.services.analysis_service import DocumentAnalyzer
 from app.services.guidance_service import GuidanceService
@@ -130,7 +130,7 @@ async def healthcheck() -> dict[str, str]:
 
 @app.post(
     "/v1/documents/analyze",
-    response_model=DocumentAnalysisEnvelope,
+    response_model=UnifiedDocumentAnalysis,
     summary="Analyze a PDF document with AI",
     tags=["documents"],
     response_description="Comprehensive document analysis with classification, summary, and actionable insights",
@@ -140,78 +140,87 @@ async def healthcheck() -> dict[str, str]:
             "content": {
                 "application/json": {
                     "example": {
-                        "result": {
-                            "document": {
-                                "id": "doc_a1b2c3d4",
-                                "name": "grant_application_2025.pdf",
-                                "size": 1048576,
-                                "type": "application/pdf",
-                                "uploadedAt": "2025-10-12T14:30:00Z",
-                            },
-                            "classification": {
-                                "category": "Grant Application",
-                                "confidence": 0.95,
-                                "subcategories": [
-                                    "Federal Grant",
-                                    "Research Funding",
-                                    "STEM Education",
-                                ],
-                            },
-                            "summary": {
-                                "title": "National Science Foundation Research Grant 2025",
-                                "sections": [
-                                    {
-                                        "title": "Overview",
-                                        "content": "Federal funding opportunity for STEM research...",
-                                        "importance": "critical",
-                                    }
-                                ],
-                                "keyPoints": [
-                                    "Total funding available: $2.5M",
-                                    "Application deadline: December 31, 2025",
-                                    "Eligible organizations: 501(c)(3) nonprofits",
-                                ],
-                            },
-                            "extractedData": {
-                                "deadlines": [
-                                    {
-                                        "description": "Final application submission",
-                                        "date": "2025-12-31",
-                                        "priority": "critical",
-                                    }
-                                ],
-                                "eligibility": [
-                                    "501(c)(3) tax-exempt status required",
-                                    "Minimum 2 years operational history",
-                                ],
-                                "financialFigures": [
-                                    {
-                                        "label": "Maximum grant amount",
-                                        "amount": 250000,
-                                        "currency": "USD",
-                                        "context": "Per organization annual limit",
-                                    }
-                                ],
-                            },
-                            "actionableSteps": [
+                        "document_id": "doc_a1b2c3d4",
+                        "title": "National Science Foundation Research Grant 2025",
+                        "page_count": 24,
+                        "session_id": "session_xyz123",
+                        "document_name": "grant_application_2025.pdf",
+                        "document_size": 1048576,
+                        "document_type": "application/pdf",
+                        "uploadedAt": "2025-10-12T14:30:00Z",
+                        "category": "Grant Application",
+                        "confidence": 0.95,
+                        "subcategories": [
+                            "Federal Grant",
+                            "Research Funding",
+                            "STEM Education",
+                        ],
+                        "summary": "A comprehensive guide for federal grant applications...",
+                        "key_highlights": [
+                            "Total funding available: $2.5M",
+                            "Application deadline: December 31, 2025",
+                            "Eligible organizations: 501(c)(3) nonprofits",
+                        ],
+                        "categorized_insights": {
+                            "critical": [
                                 {
-                                    "id": "step_001",
-                                    "title": "Verify eligibility requirements",
-                                    "description": "Review all eligibility criteria and gather supporting documentation",
-                                    "priority": "critical",
-                                    "estimatedTime": "2 hours",
-                                    "completed": False,
+                                    "label": "Application Deadline",
+                                    "description": "Final submission must be completed by December 31, 2025",
+                                    "source_chunk_id": "chunk-3",
                                 }
                             ],
-                            "pipelineStatus": [
+                            "important": [
                                 {
-                                    "stage": "extraction",
-                                    "status": "completed",
-                                    "progress": 100,
-                                    "message": "Text extraction completed",
+                                    "label": "Eligibility Requirements",
+                                    "description": "501(c)(3) status and 2 years operational history required",
+                                    "source_chunk_id": "chunk-7",
                                 }
                             ],
-                        }
+                            "informational": [],
+                        },
+                        "extracted_data": [
+                            {
+                                "name": "Maximum grant amount",
+                                "value": "$250,000",
+                                "source_chunk_id": "chunk-5",
+                            }
+                        ],
+                        "recommended_next_steps": [
+                            {
+                                "action": "Verify eligibility requirements",
+                                "priority": "critical",
+                                "rationale": "Ensure organization meets all criteria",
+                                "due_date": None,
+                                "owner": None,
+                                "source_chunk_id": "chunk-7",
+                            }
+                        ],
+                        "references": [
+                            {
+                                "chunk_id": "chunk-3",
+                                "page_number": 5,
+                                "score": 0.95,
+                                "preview": "Application deadline is December 31, 2025...",
+                                "content": "The complete text content of this chunk for highlighting purposes. Application deadline is December 31, 2025 at 11:59 PM EST. Late submissions will not be accepted under any circumstances.",
+                                "category": "critical",
+                            },
+                            {
+                                "chunk_id": "chunk-7",
+                                "page_number": 8,
+                                "score": 0.88,
+                                "preview": "Eligibility requirements include 501(c)(3) status...",
+                                "content": "Eligibility requirements include current 501(c)(3) tax-exempt status and minimum 2 years of operational history.",
+                                "category": "important",
+                            },
+                            {
+                                "chunk_id": "chunk-12",
+                                "page_number": 15,
+                                "score": 0.75,
+                                "preview": "Additional program information and contact details...",
+                                "content": "For additional information about the program, please contact the grants office at grants@example.org",
+                                "category": None,
+                            },
+                        ],
                     }
                 }
             },
@@ -237,7 +246,7 @@ async def analyze_document(
         ...,
         description="PDF document to analyze (max recommended size: 10MB)",
     )
-) -> DocumentAnalysisEnvelope:
+) -> UnifiedDocumentAnalysis:
     """
     ## Analyze PDF Document
     
@@ -476,6 +485,64 @@ async def analyze_document_simplified(
         file_size=len(contents),
         content_type=file.content_type or "application/octet-stream",
     )
+
+
+@app.get(
+    "/v1/sessions/{session_id}",
+    tags=["chat"],
+    summary="Check session status",
+    response_description="Session information and activity status",
+)
+async def get_session_status(session_id: str) -> dict:
+    """
+    ## Check Session Status
+
+    Check if a session exists and get information about its activity status.
+    Useful for debugging session expiration issues.
+
+    ### Response
+
+    Returns session information including:
+    - Whether the session exists
+    - When it was created
+    - Last activity time
+    - Number of messages in conversation
+    - Time until expiration
+
+    ### Example Usage
+
+    ```bash
+    curl -X GET "http://localhost:8000/v1/sessions/{session_id}"
+    ```
+    """
+    guidance_service = GuidanceService()
+    session_manager = guidance_service._session_manager
+
+    session = session_manager.get_session(session_id)
+
+    if not session:
+        return {
+            "exists": False,
+            "session_id": session_id,
+            "message": "Session not found or expired",
+        }
+
+    from datetime import datetime
+
+    now = datetime.now()
+    time_until_expiry = session_manager._timeout - (now - session.last_activity)
+
+    return {
+        "exists": True,
+        "session_id": session_id,
+        "document_id": session.document_id,
+        "created_at": session.created_at.isoformat(),
+        "last_activity": session.last_activity.isoformat(),
+        "message_count": len(session.messages),
+        "timeout_minutes": session_manager._timeout.total_seconds() / 60,
+        "time_until_expiry_minutes": time_until_expiry.total_seconds() / 60,
+        "is_active": time_until_expiry.total_seconds() > 0,
+    }
 
 
 @app.post(

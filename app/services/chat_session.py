@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -10,6 +11,9 @@ from pydantic import BaseModel, Field
 
 # Import settings to get configurable timeout
 from app.core.config import get_settings
+
+# Setup logging
+logger = logging.getLogger(__name__)
 
 
 class ChatMessage(BaseModel):
@@ -46,6 +50,9 @@ class ChatSessionManager:
         """
         self._sessions: Dict[str, ChatSession] = {}
         self._timeout = timedelta(minutes=session_timeout_minutes)
+        logger.info(
+            f"ChatSessionManager initialized with {session_timeout_minutes} minute timeout"
+        )
 
     def create_session(
         self,
@@ -71,6 +78,9 @@ class ChatSessionManager:
             document_context=document_context,
             metadata=metadata or {},
         )
+        logger.info(
+            f"Created new session: {session_id} (total active: {len(self._sessions)})"
+        )
         return session_id
 
     def get_session(self, session_id: str) -> Optional[ChatSession]:
@@ -83,11 +93,17 @@ class ChatSessionManager:
         Returns:
             ChatSession if found and not expired, None otherwise
         """
-        self._cleanup_expired_sessions()
-
+        # Update last activity BEFORE cleanup to prevent race condition
         session = self._sessions.get(session_id)
         if session:
             session.last_activity = datetime.now()
+            logger.debug(f"Session {session_id} activity updated")
+        else:
+            logger.warning(f"Session {session_id} not found")
+
+        # Now cleanup expired sessions (this one is protected)
+        self._cleanup_expired_sessions()
+
         return session
 
     def add_message(
@@ -209,8 +225,15 @@ class ChatSessionManager:
             for sid, session in self._sessions.items()
             if now - session.last_activity > self._timeout
         ]
-        for sid in expired:
-            del self._sessions[sid]
+        if expired:
+            logger.info(f"Cleaning up {len(expired)} expired sessions")
+            for sid in expired:
+                session = self._sessions[sid]
+                inactive_duration = now - session.last_activity
+                logger.debug(
+                    f"Removing session {sid} (inactive for {inactive_duration})"
+                )
+                del self._sessions[sid]
 
 
 # Global session manager instance

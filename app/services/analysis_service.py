@@ -34,6 +34,7 @@ from app.schemas.api import (
     SimplifiedDocumentResponse,
     SourceReference,
     StructuredExtraction,
+    UnifiedDocumentAnalysis,
 )
 from app.schemas.document import DocumentBundle
 from app.services.document_processor import DocumentProcessor
@@ -64,7 +65,10 @@ class DocumentAnalyzer:
         filename: str,
         file_size: int,
         content_type: str,
-    ) -> DocumentAnalysisEnvelope:
+    ) -> UnifiedDocumentAnalysis:
+        """
+        Unified document analysis that returns a clean, merged response.
+        """
         bundle = self._process_document(file_bytes=file_bytes, filename=filename)
         try:
             embedding_service = EmbeddingService()
@@ -94,23 +98,156 @@ class DocumentAnalyzer:
             document_context=merged_context,
         )
 
-        legacy_response = self._to_response(
-            bundle=bundle, scored_contexts=scored_contexts, payload=guidance_payload
+        # Build the unified response from guidance payload
+        categorized = guidance_payload.get("categorized_insights", {}) or {}
+        extracted = guidance_payload.get("extracted_data", []) or []
+        next_steps = guidance_payload.get("recommended_next_steps", []) or []
+        references_payload = guidance_payload.get("references", []) or []
+
+        key_highlights = guidance_payload.get("key_highlights", []) or []
+        if isinstance(key_highlights, str):
+            key_highlights = [key_highlights]
+
+        categorized_insights = CategorizedInsights(
+            critical=[InsightItem(**item) for item in categorized.get("critical", [])],
+            important=[
+                InsightItem(**item) for item in categorized.get("important", [])
+            ],
+            informational=[
+                InsightItem(**item) for item in categorized.get("informational", [])
+            ],
         )
+
+        # Build categorized chunks
+        chunk_lookup = {chunk.chunk_id: chunk for chunk in bundle.chunks}
+        score_lookup: Dict[str, float] = {}
+        for scored_list in scored_contexts.values():
+            for scored in scored_list:
+                chunk_id = scored.chunk.chunk_id
+                score_lookup[chunk_id] = max(
+                    score_lookup.get(chunk_id, float("-inf")), scored.score
+                )
+
+        categorized_chunks: List[CategorizedChunk] = []
+        seen_pairs: Set[Tuple[InsightPriority, str]] = set()
+        for priority_name, insight_items in categorized.items():
+            try:
+                priority = InsightPriority(priority_name)
+            except ValueError:
+                continue
+            for item in insight_items or []:
+                chunk_id = item.get("source_chunk_id")
+                if not chunk_id:
+                    continue
+                if chunk_id not in chunk_lookup:
+                    continue
+                key = (priority, chunk_id)
+                if key in seen_pairs:
+                    continue
+                seen_pairs.add(key)
+                chunk = chunk_lookup[chunk_id]
+                categorized_chunks.append(
+                    CategorizedChunk(
+                        key=priority,
+                        chunk_id=chunk_id,
+                        data=chunk.content,
+                        page_number=chunk.page_number,
+                        score=score_lookup.get(chunk_id),
+                    )
+                )
+
+        extracted_points: List[ExtractedDataPoint] = []
+        for item in extracted:
+            extracted_points.append(ExtractedDataPoint(**item))
+
+        recommended_steps: List[RecommendedStep] = []
+        for step in next_steps:
+            recommended_steps.append(RecommendedStep(**step))
+
+        # Build unified references list with full content and category
+        references: List[SourceReference] = []
+
+        # First, add references from payload
+        for ref in references_payload:
+            chunk_id = ref.get("chunk_id")
+            chunk = chunk_lookup.get(chunk_id) if chunk_id else None
+
+            references.append(
+                SourceReference(
+                    chunk_id=ref.get("chunk_id", ""),
+                    page_number=ref.get("page_number"),
+                    score=ref.get("score", 0.0),
+                    preview=ref.get("preview", ""),
+                    content=chunk.content if chunk else None,
+                    category=None,  # No category for general references
+                )
+            )
+
+        # Then, add categorized chunks with their category labels
+        for cat_chunk in categorized_chunks:
+            # Skip if already in references
+            if any(r.chunk_id == cat_chunk.chunk_id for r in references):
+                # Update existing reference with category
+                for r in references:
+                    if r.chunk_id == cat_chunk.chunk_id:
+                        r.category = cat_chunk.key.value
+                continue
+
+            # Add new reference with full content
+            references.append(
+                SourceReference(
+                    chunk_id=cat_chunk.chunk_id,
+                    page_number=cat_chunk.page_number,
+                    score=cat_chunk.score or 0.0,
+                    preview=(
+                        cat_chunk.data[:200] + "..."
+                        if len(cat_chunk.data) > 200
+                        else cat_chunk.data
+                    ),
+                    content=cat_chunk.data,
+                    category=cat_chunk.key.value,
+                )
+            )
+
+        # Get classification from the document
+        category = "Document"
+        confidence = 0.85
+        subcategories = []
+
+        # Try to infer category from key highlights
+        if any(word in bundle.title.lower() for word in ["grant", "funding", "award"]):
+            category = "Grant Application"
+            confidence = 0.90
+        elif any(
+            word in bundle.title.lower()
+            for word in ["compliance", "form", "onboarding"]
+        ):
+            category = "Compliance Document"
+            confidence = 0.85
+        elif any(word in bundle.title.lower() for word in ["contract", "agreement"]):
+            category = "Legal Contract"
+            confidence = 0.88
+
         uploaded_at = datetime.utcnow()
-        processing_result = self._to_processing_result(
-            bundle=bundle,
-            legacy=legacy_response,
-            payload=guidance_payload,
-            filename=filename,
-            file_size=file_size,
-            content_type=content_type,
+
+        return UnifiedDocumentAnalysis(
+            document_id=bundle.document_id,
+            title=bundle.title,
+            page_count=bundle.page_count,
+            session_id=session_id,
+            document_name=filename,
+            document_size=file_size,
+            document_type=content_type,
             uploaded_at=uploaded_at,
-        )
-        return DocumentAnalysisEnvelope(
-            result=processing_result,
-            legacy=legacy_response,
-            session_id=session_id,  # Include session ID in response
+            category=category,
+            confidence=confidence,
+            subcategories=subcategories,
+            summary=guidance_payload.get("summary", ""),
+            key_highlights=key_highlights,
+            categorized_insights=categorized_insights,
+            extracted_data=extracted_points,
+            recommended_next_steps=recommended_steps,
+            references=references,
         )
 
     async def analyze_simplified(
