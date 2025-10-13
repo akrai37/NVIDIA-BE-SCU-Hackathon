@@ -92,12 +92,6 @@ class DocumentAnalyzer:
             pages=bundle.page_count,
         )
 
-        # Create a chat session for follow-up questions
-        session_id = guidance_service.create_session(
-            document_id=bundle.document_id,
-            document_context=merged_context,
-        )
-
         # Build the unified response from guidance payload
         categorized = guidance_payload.get("categorized_insights", {}) or {}
         extracted = guidance_payload.get("extracted_data", []) or []
@@ -127,6 +121,22 @@ class DocumentAnalyzer:
                 score_lookup[chunk_id] = max(
                     score_lookup.get(chunk_id, float("-inf")), scored.score
                 )
+
+        # Create a chat session for follow-up questions
+        # Build chunk lookup for session storage (after score_lookup is populated)
+        chunk_dict = {}
+        for chunk in bundle.chunks:
+            chunk_dict[chunk.chunk_id] = {
+                "content": chunk.content,
+                "page_number": chunk.page_number,
+                "score": score_lookup.get(chunk.chunk_id),
+            }
+        
+        session_id = guidance_service.create_session(
+            document_id=bundle.document_id,
+            document_context=merged_context,
+            document_chunks=chunk_dict,
+        )
 
         categorized_chunks: List[CategorizedChunk] = []
         seen_pairs: Set[Tuple[InsightPriority, str]] = set()

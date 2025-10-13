@@ -332,7 +332,7 @@ class GuidanceService:
             additional_context: Optional additional context from user (e.g., specific lines from document)
 
         Returns:
-            Dict containing answer and session info
+            Dict containing answer, session info, and references (chunks with page numbers)
         """
         # Get or validate session
         session = self._session_manager.get_session(session_id)
@@ -389,16 +389,48 @@ class GuidanceService:
         # Add assistant response to history
         self._session_manager.add_message(session_id, "assistant", answer)
 
+        # Get references from stored chunks in session
+        references = []
+        if session.document_chunks:
+            # Infer tag from question context
+            question_lower = question.lower()
+            inferred_tag = self._infer_tag_from_question(question_lower)
+            
+            # Build all references with scores
+            all_references = []
+            for chunk_id, chunk_data in session.document_chunks.items():
+                content = chunk_data.get("content", "")
+                
+                # Try to infer more specific tag from chunk content if general tag
+                tag = inferred_tag or self._infer_tag_from_content(content)
+                
+                all_references.append({
+                    "chunk_id": chunk_id,
+                    "page_number": chunk_data.get("page_number"),
+                    "content": content,
+                    "relevance_score": chunk_data.get("score"),
+                    "tag": tag,
+                })
+            
+            # Sort by relevance score (highest first) and limit to top 3
+            all_references.sort(
+                key=lambda x: x.get("relevance_score") or 0.0, 
+                reverse=True
+            )
+            references = all_references[:3]  # Keep only top 3 most relevant
+
         return {
             "answer": answer,
             "session_id": session_id,
             "conversation_length": len(session.messages),
+            "references": references,
         }
 
     def create_session(
         self,
         document_id: Optional[str] = None,
         document_context: Optional[str] = None,
+        document_chunks: Optional[Dict[str, Dict]] = None,
     ) -> str:
         """
         Create a new chat session.
@@ -406,6 +438,7 @@ class GuidanceService:
         Args:
             document_id: Optional document identifier
             document_context: Optional cached document context
+            document_chunks: Optional mapping of chunk_id to chunk data
 
         Returns:
             session_id: New session identifier
@@ -413,6 +446,7 @@ class GuidanceService:
         return self._session_manager.create_session(
             document_id=document_id,
             document_context=document_context,
+            document_chunks=document_chunks,
         )
 
     def clear_session(self, session_id: str) -> bool:
@@ -464,3 +498,126 @@ class GuidanceService:
 
         # Last resort
         return str(response)
+
+    @staticmethod
+    def _extract_references_from_context(context: str) -> List[Dict[str, Any]]:
+        """
+        Extract chunk references from document context.
+        
+        Context format expected: "Chunk ID: chunk-X | Page: Y\nContent...\n\n"
+        
+        Args:
+            context: Document context string with embedded chunk metadata
+            
+        Returns:
+            List of reference dictionaries with chunk_id, page_number, content, relevance_score
+        """
+        import re
+        
+        references = []
+        
+        # Split context into chunks (assuming they're separated by double newlines)
+        chunks = context.split('\n\n')
+        
+        for chunk_text in chunks:
+            if not chunk_text.strip():
+                continue
+                
+            # Try to extract chunk ID and page number from headers like:
+            # "Chunk ID: chunk-5 | Page: 3"
+            # or "[chunk-5] (Page 3)"
+            # or just look for chunk-X pattern
+            chunk_id_match = re.search(r'chunk-\d+', chunk_text, re.IGNORECASE)
+            page_match = re.search(r'Page[:\s]+(\d+)', chunk_text, re.IGNORECASE)
+            
+            if chunk_id_match:
+                chunk_id = chunk_id_match.group(0)
+                page_number = int(page_match.group(1)) if page_match else None
+                
+                # Extract the actual content (remove metadata lines)
+                content_lines = []
+                for line in chunk_text.split('\n'):
+                    # Skip lines that look like metadata
+                    if not re.match(r'^(Chunk ID|Page|Score|\[chunk-|\s*$)', line, re.IGNORECASE):
+                        content_lines.append(line)
+                
+                content = '\n'.join(content_lines).strip()
+                
+                if content:
+                    references.append({
+                        "chunk_id": chunk_id,
+                        "page_number": page_number,
+                        "content": content,
+                        "relevance_score": None,  # Could be extracted if available
+                    })
+        
+        return references
+
+    @staticmethod
+    def _infer_tag_from_question(question: str) -> Optional[str]:
+        """
+        Infer a tag/category from the user's question.
+        
+        Args:
+            question: User's question in lowercase
+            
+        Returns:
+            Tag string or None
+        """
+        # Define keyword mappings for different tags
+        tag_keywords = {
+            "deadline": ["deadline", "due date", "when is", "submission date", "cut-off", "by when"],
+            "eligibility": ["eligible", "eligibility", "qualify", "requirements", "criteria", "who can"],
+            "financial": ["budget", "cost", "funding", "money", "amount", "payment", "fee", "grant amount"],
+            "requirement": ["require", "must", "need to", "necessary", "mandatory", "obligation"],
+            "contact": ["contact", "email", "phone", "reach", "call", "address", "who to contact"],
+            "process": ["how to", "steps", "procedure", "process", "apply", "submit"],
+            "documentation": ["document", "form", "paperwork", "file", "attachment", "submit"],
+            "reporting": ["report", "reporting", "update", "progress", "quarterly", "annual"],
+        }
+        
+        # Check which tag keywords are present in the question
+        for tag, keywords in tag_keywords.items():
+            if any(keyword in question for keyword in keywords):
+                return tag
+        
+        return None
+
+    @staticmethod
+    def _infer_tag_from_content(content: str) -> Optional[str]:
+        """
+        Infer a tag/category from chunk content.
+        
+        Args:
+            content: Chunk content text
+            
+        Returns:
+            Tag string or None
+        """
+        content_lower = content.lower()
+        
+        # Define keyword patterns for content-based tagging
+        content_patterns = {
+            "deadline": ["deadline", "due date", "submission date", "by", "before", "cut-off date"],
+            "eligibility": ["eligible", "eligibility", "qualify", "must be", "requirement", "criteria"],
+            "financial": ["$", "budget", "cost", "funding", "grant amount", "fee", "payment", "price"],
+            "requirement": ["required", "must", "shall", "mandatory", "necessary", "need to"],
+            "contact": ["contact", "@", "phone:", "email:", "call", "reach us", "tel:"],
+            "process": ["step", "procedure", "process", "how to", "application process"],
+            "documentation": ["document", "form", "attach", "submit", "upload", "provide"],
+            "reporting": ["report", "reporting", "quarterly", "annual", "update", "progress report"],
+        }
+        
+        # Count matches for each tag
+        tag_scores = {}
+        for tag, patterns in content_patterns.items():
+            score = sum(1 for pattern in patterns if pattern in content_lower)
+            if score > 0:
+                tag_scores[tag] = score
+        
+        # Return tag with highest score, or None if no matches
+        if tag_scores:
+            return max(tag_scores.items(), key=lambda x: x[1])[0]
+        
+        return "general"  # Default tag for unclassified content
+

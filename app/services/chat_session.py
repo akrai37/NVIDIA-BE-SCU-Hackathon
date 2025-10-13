@@ -31,6 +31,10 @@ class ChatSession(BaseModel):
     document_id: Optional[str] = Field(None, description="Associated document ID")
     messages: List[ChatMessage] = Field(default_factory=list)
     document_context: Optional[str] = Field(None, description="Cached document context")
+    document_chunks: Dict[str, Dict] = Field(
+        default_factory=dict,
+        description="Mapping of chunk_id to chunk data (content, page_number, score)"
+    )
     created_at: datetime = Field(default_factory=datetime.now)
     last_activity: datetime = Field(default_factory=datetime.now)
     metadata: Dict = Field(
@@ -58,6 +62,7 @@ class ChatSessionManager:
         self,
         document_id: Optional[str] = None,
         document_context: Optional[str] = None,
+        document_chunks: Optional[Dict[str, Dict]] = None,
         metadata: Optional[Dict] = None,
     ) -> str:
         """
@@ -66,6 +71,7 @@ class ChatSessionManager:
         Args:
             document_id: Optional document ID to associate with session
             document_context: Optional cached document context
+            document_chunks: Optional mapping of chunk_id to chunk data
             metadata: Optional metadata to store with session
 
         Returns:
@@ -76,6 +82,7 @@ class ChatSessionManager:
             session_id=session_id,
             document_id=document_id,
             document_context=document_context,
+            document_chunks=document_chunks or {},
             metadata=metadata or {},
         )
         logger.info(

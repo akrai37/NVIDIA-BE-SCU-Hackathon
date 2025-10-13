@@ -186,13 +186,36 @@ class ChatRequest(BaseModel):
     )
 
 
+class ChatReferenceChunk(BaseModel):
+    """Reference to a document chunk used in the chat response."""
+
+    chunk_id: str = Field(..., description="Unique chunk identifier")
+    page_number: Optional[int] = Field(
+        None, description="Page number where this chunk is located"
+    )
+    content: str = Field(..., description="Full content of the chunk")
+    relevance_score: Optional[float] = Field(
+        None, description="Relevance score (0-1) of this chunk to the query"
+    )
+    tag: Optional[str] = Field(
+        None, 
+        description="Tag/category for the reference (e.g., 'deadline', 'eligibility', 'financial', 'requirement', 'contact')"
+    )
+
+
 class ChatResponse(BaseModel):
     """Response model for chat endpoint."""
 
-    answer: str = Field(..., description="AI-generated answer to the user's question")
+    answer: str = Field(
+        ..., description="AI-generated answer to the user's question (without embedded chunk content)"
+    )
     session_id: str = Field(..., description="Session ID for continued conversation")
     conversation_length: int = Field(
         ..., description="Number of messages in the conversation"
+    )
+    references: List[ChatReferenceChunk] = Field(
+        default_factory=list,
+        description="List of document chunks referenced in the answer with page numbers for mapping/highlighting"
     )
 
 
