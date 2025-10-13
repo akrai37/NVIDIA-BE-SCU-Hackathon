@@ -16,7 +16,7 @@ class Settings(BaseModel):
         default=os.getenv("NVIDIA_EMBEDDING_MODEL", "nvidia/embed-qa-4")
     )
     nvidia_llm_model: str = Field(
-        default=os.getenv("NVIDIA_LLM_MODEL", "nvidia/nemotron-mini-4b-instruct")
+        default=os.getenv("NVIDIA_LLM_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct")
     )
     chunk_size: int = Field(default=900, ge=200, le=2000)
     chunk_overlap: int = Field(default=150, ge=0, lt=500)

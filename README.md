@@ -9,7 +9,7 @@ API backend for the NVIDIA Hackathon prototype that delivers real-time document 
 3. **Chunk** – `RecursiveCharacterTextSplitter` slices context-aware segments (~900 chars, 150 overlap).
 4. **Embed** – Chunks are embedded with NVIDIA's `embed-qa-4` model via NGC/NIM.
 5. **Store & Retrieve** – A lightweight cosine-similarity in-memory vector store powers targeted lookups.
-6. **Reason** – NVIDIA Nemotron (`nemotron-mini-4b-instruct` by default) turns retrieved evidence into structured JSON with critical/important/informational lanes.
+6. **Reason** – NVIDIA Nemotron (`llama-3.1-nemotron-70b-instruct` by default) turns retrieved evidence into structured JSON with critical/important/informational lanes.
 7. **Respond** – FastAPI returns a typed response ready for the frontend to render guidance cards and next steps.
 
 ## ✅ Prerequisites
@@ -25,7 +25,7 @@ Set the following environment variables before running the app:
 | `NVIDIA_API_KEY` | Bearer token for NVIDIA AI endpoints | `nvapi-xxxxxxxx` |
 | `NVIDIA_BASE_URL` | (Optional) Override the default API gateway | `https://integrate.api.nvidia.com/v1` |
 | `NVIDIA_EMBEDDING_MODEL` | (Optional) Embedding model name | `nvidia/embed-qa-4` |
-| `NVIDIA_LLM_MODEL` | (Optional) Nemotron model name | `nvidia/nemotron-mini-4b-instruct` |
+| `NVIDIA_LLM_MODEL` | (Optional) Nemotron model name | `nvidia/llama-3.1-nemotron-70b-instruct` |
 | `ENABLE_OCR` | Enable NVIDIA OCR fallback for scanned PDFs | `true` |
 | `NVIDIA_OCR_MODEL` | (Optional) OCR NIM identifier | `nvidia/ocr-nvble-12b-vision` |
 | `OCR_RENDER_SCALE` | (Optional) Render scale when rasterising pages for OCR | `2.0` |
