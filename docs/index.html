@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>NVIDIA Document Guidance API - Documentation Portal</title>
+		<style>
+			* {
+				margin: 0;
+				padding: 0;
+				box-sizing: border-box;
+			}
+
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+					Oxygen, Ubuntu, Cantarell, sans-serif;
+				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+				min-height: 100vh;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				padding: 20px;
+			}
+
+			.container {
+				background: white;
+				border-radius: 20px;
+				padding: 50px;
+				box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+				max-width: 800px;
+				width: 100%;
+			}
+
+			h1 {
+				color: #333;
+				font-size: 2.5em;
+				margin-bottom: 10px;
+				text-align: center;
+			}
+
+			.subtitle {
+				color: #666;
+				text-align: center;
+				margin-bottom: 40px;
+				font-size: 1.1em;
+			}
+
+			.status {
+				background: #f0f9ff;
+				border: 2px solid #0ea5e9;
+				border-radius: 10px;
+				padding: 15px;
+				margin-bottom: 30px;
+				text-align: center;
+			}
+
+			.status.online {
+				background: #f0fdf4;
+				border-color: #22c55e;
+			}
+
+			.status.offline {
+				background: #fef2f2;
+				border-color: #ef4444;
+			}
+
+			.status-indicator {
+				display: inline-block;
+				width: 12px;
+				height: 12px;
+				border-radius: 50%;
+				margin-right: 8px;
+				animation: pulse 2s infinite;
+			}
+
+			.status.online .status-indicator {
+				background: #22c55e;
+			}
+
+			.status.offline .status-indicator {
+				background: #ef4444;
+			}
+
+			@keyframes pulse {
+				0%,
+				100% {
+					opacity: 1;
+				}
+				50% {
+					opacity: 0.5;
+				}
+			}
+
+			.doc-links {
+				display: grid;
+				gap: 20px;
+				margin-top: 30px;
+			}
+
+			.doc-card {
+				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+				border-radius: 15px;
+				padding: 30px;
+				color: white;
+				text-decoration: none;
+				transition: transform 0.3s, box-shadow 0.3s;
+				display: block;
+			}
+
+			.doc-card:hover {
+				transform: translateY(-5px);
+				box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+			}
+
+			.doc-card h2 {
+				font-size: 1.8em;
+				margin-bottom: 10px;
+			}
+
+			.doc-card p {
+				opacity: 0.9;
+				line-height: 1.6;
+			}
+
+			.doc-card .icon {
+				font-size: 2.5em;
+				margin-bottom: 10px;
+			}
+
+			.redoc {
+				background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+			}
+
+			.swagger {
+				background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+			}
+
+			.openapi {
+				background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+			}
+
+			.footer {
+				margin-top: 40px;
+				text-align: center;
+				color: #666;
+				font-size: 0.9em;
+			}
+
+			.endpoints {
+				background: #f9fafb;
+				border-radius: 10px;
+				padding: 20px;
+				margin-top: 30px;
+			}
+
+			.endpoints h3 {
+				color: #333;
+				margin-bottom: 15px;
+			}
+
+			.endpoint {
+				display: flex;
+				align-items: center;
+				padding: 10px;
+				margin-bottom: 10px;
+				background: white;
+				border-radius: 8px;
+				border-left: 4px solid #667eea;
+			}
+
+			.endpoint .method {
+				background: #667eea;
+				color: white;
+				padding: 5px 10px;
+				border-radius: 5px;
+				font-weight: bold;
+				margin-right: 15px;
+				min-width: 60px;
+				text-align: center;
+				font-size: 0.85em;
+			}
+
+			.endpoint .method.post {
+				background: #10b981;
+			}
+
+			.endpoint .path {
+				color: #333;
+				font-family: "Courier New", monospace;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>🚀 NVIDIA Document Guidance API</h1>
+			<p class="subtitle">Interactive API Documentation Portal</p>
+
+			<div class="status" id="status">
+				<span class="status-indicator"></span>
+				<span id="status-text">Checking server status...</span>
+			</div>
+
+			<div class="doc-links">
+				<a
+					href="http://localhost:8000/redoc"
+					class="doc-card redoc"
+					target="_blank"
+				>
+					<div class="icon">📚</div>
+					<h2>ReDoc Documentation</h2>
+					<p>
+						Beautiful, responsive API documentation with a three-panel layout.
+						Perfect for reading and understanding the API structure.
+					</p>
+				</a>
+
+				<a
+					href="http://localhost:8000/docs"
+					class="doc-card swagger"
+					target="_blank"
+				>
+					<div class="icon">🧪</div>
+					<h2>Swagger UI</h2>
+					<p>
+						Interactive API explorer with "Try it out" functionality. Test
+						endpoints directly in your browser.
+					</p>
+				</a>
+
+				<a
+					href="http://localhost:8000/openapi.json"
+					class="doc-card openapi"
+					target="_blank"
+				>
+					<div class="icon">📋</div>
+					<h2>OpenAPI Schema</h2>
+					<p>
+						Raw OpenAPI 3.0 specification in JSON format. Use this for
+						generating client SDKs or importing into other tools.
+					</p>
+				</a>
+			</div>
+
+			<div class="endpoints">
+				<h3>📍 Available Endpoints</h3>
+				<div class="endpoint">
+					<span class="method">GET</span>
+					<span class="path">/</span>
+				</div>
+				<div class="endpoint">
+					<span class="method">GET</span>
+					<span class="path">/healthz</span>
+				</div>
+				<div class="endpoint">
+					<span class="method post">POST</span>
+					<span class="path">/v1/documents/analyze</span>
+				</div>
+			</div>
+
+			<div class="footer">
+				<p>Server running on <strong>http://localhost:8000</strong></p>
+				<p style="margin-top: 10px; font-size: 0.85em">
+					Press <kbd>Ctrl+C</kbd> in the terminal to stop the server
+				</p>
+			</div>
+		</div>
+
+		<script>
+			// Check server status
+			async function checkStatus() {
+				const statusDiv = document.getElementById("status");
+				const statusText = document.getElementById("status-text");
+
+				try {
+					const response = await fetch("http://localhost:8000/healthz");
+					if (response.ok) {
+						const data = await response.json();
+						statusDiv.className = "status online";
+						statusText.textContent = `Server is ${
+							data.status === "ok"
+								? "online and fully operational"
+								: "online but in degraded mode"
+						}`;
+					} else {
+						throw new Error("Server not responding");
+					}
+				} catch (error) {
+					statusDiv.className = "status offline";
+					statusText.textContent =
+						"Server is offline. Please start the server first.";
+				}
+			}
+
+			// Check status on load and every 5 seconds
+			checkStatus();
+			setInterval(checkStatus, 5000);
+
+			// Add keyboard shortcut hints
+			document.addEventListener("keydown", (e) => {
+				if (e.key === "1") window.open("http://localhost:8000/redoc", "_blank");
+				if (e.key === "2") window.open("http://localhost:8000/docs", "_blank");
+				if (e.key === "3")
+					window.open("http://localhost:8000/openapi.json", "_blank");
+			});
+		</script>
+	</body>
+</html>
