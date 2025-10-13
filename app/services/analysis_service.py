@@ -11,22 +11,29 @@ from app.schemas.api import (
     ActionableStep,
     CategorizedChunk,
     CategorizedInsights,
+    ContactInfo,
+    DateEvent,
     DeadlineInfo,
     DocumentAnalysisEnvelope,
     DocumentAnalysisResponse,
     DocumentClassification,
     DocumentMetadata,
     DocumentSummary,
+    DocumentSummaryData,
     ExtractedDataAggregate,
     ExtractedDataPoint,
     FinancialFigure,
+    FinancialInfo,
     InsightItem,
     InsightPriority,
     PipelineStageStatus,
     ProcessingResult,
+    QuantityInfo,
     RecommendedStep,
     SectionSummary,
+    SimplifiedDocumentResponse,
     SourceReference,
+    StructuredExtraction,
 )
 from app.schemas.document import DocumentBundle
 from app.services.document_processor import DocumentProcessor
@@ -104,6 +111,73 @@ class DocumentAnalyzer:
             result=processing_result,
             legacy=legacy_response,
             session_id=session_id,  # Include session ID in response
+        )
+
+    async def analyze_simplified(
+        self,
+        *,
+        file_bytes: bytes,
+        filename: str,
+        file_size: int,
+        content_type: str,
+    ) -> SimplifiedDocumentResponse:
+        """
+        Simplified document analysis that returns only structured extraction data.
+
+        Returns:
+            SimplifiedDocumentResponse with summary, dates, financial info, quantities, and contacts
+        """
+        bundle = self._process_document(file_bytes=file_bytes, filename=filename)
+        try:
+            embedding_service = EmbeddingService()
+            vector_store = InMemoryVectorStore(embedding_service)
+            vector_store.add_chunks(bundle.chunks)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+        guidance_service = GuidanceService()
+
+        queries = self._build_queries()
+        scored_contexts = {
+            label: vector_store.similarity_search(prompt, top_k=self.settings.top_k)
+            for label, prompt in queries.items()
+        }
+        merged_context = self._build_context(scored_contexts)
+
+        # Extract structured data using the new method
+        structured_data = await guidance_service.extract_structured_data(
+            context=merged_context,
+            title=bundle.title,
+            pages=bundle.page_count,
+        )
+
+        # Create a chat session for follow-up questions
+        session_id = guidance_service.create_session(
+            document_id=bundle.document_id,
+            document_context=merged_context,
+        )
+
+        # Convert structured data to response models
+        summary_data = DocumentSummaryData(**structured_data.get("summary", {}))
+        dates = [DateEvent(**d) for d in structured_data.get("dates", [])]
+        financial = [FinancialInfo(**f) for f in structured_data.get("financial", [])]
+        quantities = [QuantityInfo(**q) for q in structured_data.get("quantities", [])]
+        contacts = [ContactInfo(**c) for c in structured_data.get("contacts", [])]
+
+        structured_extraction = StructuredExtraction(
+            summary=summary_data,
+            dates=dates,
+            financial=financial,
+            quantities=quantities,
+            contacts=contacts,
+        )
+
+        return SimplifiedDocumentResponse(
+            document_id=bundle.document_id,
+            title=bundle.title,
+            page_count=bundle.page_count,
+            session_id=session_id,
+            structured_extraction=structured_extraction,
         )
 
     def _process_document(self, *, file_bytes: bytes, filename: str) -> DocumentBundle:

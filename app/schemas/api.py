@@ -190,6 +190,89 @@ class ChatResponse(BaseModel):
     )
 
 
+class DateEvent(BaseModel):
+    """Represents a date extracted from the document with context."""
+
+    date: str = Field(..., description="ISO-8601 formatted date (YYYY-MM-DD)")
+    event_type: str = Field(
+        ..., description="Type of event: due, start, end, renewal, reporting, etc."
+    )
+    description: str = Field(..., description="Context about this date")
+    page_number: Optional[int] = Field(
+        None, description="Page number where this was found"
+    )
+    chunk_id: Optional[str] = Field(None, description="Chunk ID for highlighting")
+
+
+class FinancialInfo(BaseModel):
+    """Represents financial information extracted from the document."""
+
+    amount: float = Field(..., description="Numerical amount")
+    currency: str = Field(default="USD", description="Currency code (USD, EUR, etc.)")
+    description: str = Field(..., description="Context about this financial figure")
+    page_number: Optional[int] = Field(
+        None, description="Page number where this was found"
+    )
+    chunk_id: Optional[str] = Field(None, description="Chunk ID for highlighting")
+
+
+class QuantityInfo(BaseModel):
+    """Represents quantities, percentages, counts, or durations."""
+
+    value: float = Field(..., description="Numerical value")
+    unit: Optional[str] = Field(
+        None, description="Unit of measurement (days, %, hours, etc.)"
+    )
+    type: str = Field(..., description="Type: percentage, count, duration, etc.")
+    description: str = Field(..., description="Context about this quantity")
+    page_number: Optional[int] = Field(
+        None, description="Page number where this was found"
+    )
+    chunk_id: Optional[str] = Field(None, description="Chunk ID for highlighting")
+
+
+class ContactInfo(BaseModel):
+    """Represents contact information extracted from the document."""
+
+    name: Optional[str] = Field(None, description="Contact name")
+    role: Optional[str] = Field(None, description="Role or title")
+    email: Optional[str] = Field(None, description="Email address")
+    phone: Optional[str] = Field(None, description="Phone number")
+    page_number: Optional[int] = Field(
+        None, description="Page number where this was found"
+    )
+    chunk_id: Optional[str] = Field(None, description="Chunk ID for highlighting")
+
+
+class DocumentSummaryData(BaseModel):
+    """Short summary of the document."""
+
+    summary: str = Field(..., description="2-3 sentence summary of the document")
+    bullet_points: List[str] = Field(
+        default_factory=list, description="3-5 key bullet points"
+    )
+
+
+class StructuredExtraction(BaseModel):
+    """All structured data extracted from the document."""
+
+    summary: DocumentSummaryData
+    dates: List[DateEvent] = Field(default_factory=list)
+    financial: List[FinancialInfo] = Field(default_factory=list)
+    quantities: List[QuantityInfo] = Field(default_factory=list)
+    contacts: List[ContactInfo] = Field(default_factory=list)
+
+
+class SimplifiedDocumentResponse(BaseModel):
+    """Simplified document analysis response with only essential structured data."""
+
+    document_id: str
+    title: str
+    page_count: int
+    session_id: str = Field(..., description="Chat session ID for follow-up questions")
+    structured_extraction: StructuredExtraction
+
+
 class DocumentAnalysisEnvelope(BaseModel):
     """Top-level response envelope so UI can evolve without breaking changes."""
 

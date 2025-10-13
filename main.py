@@ -3,7 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
 
 from app.core.config import get_settings
-from app.schemas.api import DocumentAnalysisEnvelope, ChatRequest, ChatResponse
+from app.schemas.api import (
+    DocumentAnalysisEnvelope,
+    ChatRequest,
+    ChatResponse,
+    SimplifiedDocumentResponse,
+)
 from app.services.analysis_service import DocumentAnalyzer
 from app.services.guidance_service import GuidanceService
 
@@ -385,6 +390,87 @@ async def analyze_document(
     filename = file.filename or "uploaded.pdf"
 
     return await analyzer.analyze(
+        file_bytes=contents,
+        filename=filename,
+        file_size=len(contents),
+        content_type=file.content_type or "application/octet-stream",
+    )
+
+
+@app.post(
+    "/v1/documents/analyze/simplified",
+    response_model=SimplifiedDocumentResponse,
+    summary="Analyze a PDF document with simplified structured output",
+    tags=["documents"],
+    response_description="Simplified document analysis with structured extraction (summary, dates, financial, quantities, contacts)",
+)
+async def analyze_document_simplified(
+    file: UploadFile = File(
+        ...,
+        description="PDF document to analyze (max recommended size: 10MB)",
+    )
+) -> SimplifiedDocumentResponse:
+    """
+    ## Analyze PDF Document (Simplified)
+    
+    Upload and analyze a PDF document to receive structured data extraction only.
+    This endpoint returns a cleaner, simplified response focused on extracting specific data types.
+    
+    ### Extracted Data Types
+    
+    1. **📝 Summary**
+       - 2-3 sentence document summary
+       - 3-5 key bullet points
+    
+    2. **📅 Dates**
+       - All dates in ISO-8601 format (YYYY-MM-DD)
+       - Event types: due, start, end, renewal, reporting
+       - Context and page references
+    
+    3. **💰 Financial Information**
+       - Amounts with currency
+       - Context and descriptions
+       - Page references for highlighting
+    
+    4. **📊 Quantities**
+       - Percentages, counts, durations
+       - Units and types
+       - Context and page references
+    
+    5. **👥 Contacts**
+       - Names and roles
+       - Email addresses and phone numbers
+       - Page references
+    
+    ### Response Structure
+    
+    Returns a `SimplifiedDocumentResponse` containing:
+    - `document_id`: Unique document identifier
+    - `title`: Document title
+    - `page_count`: Number of pages
+    - `session_id`: Chat session ID for follow-up questions
+    - `structured_extraction`: All extracted structured data with page references
+    
+    ### Example Usage
+    
+    **cURL:**
+    ```bash
+    curl -X POST "http://localhost:8000/v1/documents/analyze/simplified" \\
+      -F "file=@grant_document.pdf"
+    ```
+    """
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400, detail="Only PDF files (.pdf) are supported."
+        )
+
+    contents = await file.read()
+    if not contents:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    filename = file.filename or "uploaded.pdf"
+
+    return await analyzer.analyze_simplified(
         file_bytes=contents,
         filename=filename,
         file_size=len(contents),

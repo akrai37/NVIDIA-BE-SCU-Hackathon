@@ -79,6 +79,82 @@ User question: {question}
 
 Please provide a helpful answer based on the document context{additional_context_instruction} and conversation history."""
 
+_STRUCTURED_EXTRACTION_SYSTEM_PROMPT = """You are an expert document analyst specializing in extracting structured data from grant, finance, and compliance documents.
+
+CRITICAL: You MUST return ONLY a valid JSON object. No markdown, no code fences, no explanatory text - just the raw JSON.
+
+Your task is to extract:
+1. A short summary (2-3 sentences) with 3-5 key bullet points
+2. All dates in ISO-8601 format (YYYY-MM-DD) with event types (due, start, end, renewal, reporting)
+3. All financial information (amounts with currency)
+4. All quantities (percentages, counts, durations)
+5. All contact information (names, roles, emails, phones)
+
+For each piece of extracted data, include the page_number and chunk_id where it was found for highlighting purposes.
+
+Requirements:
+- Return ONLY valid JSON with double quotes for keys and string values
+- Do NOT wrap the JSON in markdown code blocks (no ```json or ```)
+- Do NOT include any text before or after the JSON
+- If information is missing for a category, use an empty array []
+- Ensure all dates are in ISO-8601 format (YYYY-MM-DD)
+- Include page_number and chunk_id references wherever possible
+
+Your entire response should be parseable by JSON.parse()."""
+
+_STRUCTURED_EXTRACTION_USER_PROMPT = """Document context with chunk IDs and page numbers:
+{context}
+
+Document metadata:
+- Title: {title}
+- Total pages: {pages}
+
+Extract structured data and provide a JSON object with the following exact shape:
+{{
+  "summary": {{
+    "summary": "2-3 sentence summary of the document",
+    "bullet_points": ["key point 1", "key point 2", "key point 3"]
+  }},
+  "dates": [
+    {{
+      "date": "YYYY-MM-DD",
+      "event_type": "due|start|end|renewal|reporting",
+      "description": "Context about this date",
+      "page_number": 1,
+      "chunk_id": "chunk_id_here"
+    }}
+  ],
+  "financial": [
+    {{
+      "amount": 10000.00,
+      "currency": "USD",
+      "description": "Context about this amount",
+      "page_number": 1,
+      "chunk_id": "chunk_id_here"
+    }}
+  ],
+  "quantities": [
+    {{
+      "value": 50,
+      "unit": "%",
+      "type": "percentage|count|duration",
+      "description": "Context about this quantity",
+      "page_number": 1,
+      "chunk_id": "chunk_id_here"
+    }}
+  ],
+  "contacts": [
+    {{
+      "name": "John Doe",
+      "role": "Program Officer",
+      "email": "john@example.com",
+      "phone": "+1-555-0100",
+      "page_number": 1,
+      "chunk_id": "chunk_id_here"
+    }}
+  ]
+}}"""
+
 
 class GuidanceService:
     """Generate structured guidance using NVIDIA Nemotron models via NIM."""
@@ -94,6 +170,7 @@ class GuidanceService:
             api_key=settings.nvidia_api_key,
             base_url=settings.nvidia_base_url,
             temperature=settings.guidance_temperature,
+            max_tokens=4096,  # Increase token limit to avoid truncation
         )
         self._prompt = ChatPromptTemplate.from_messages(
             [
@@ -105,6 +182,12 @@ class GuidanceService:
             [
                 ("system", _CHAT_SYSTEM_PROMPT),
                 ("user", _CHAT_USER_PROMPT),
+            ]
+        )
+        self._extraction_prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", _STRUCTURED_EXTRACTION_SYSTEM_PROMPT),
+                ("user", _STRUCTURED_EXTRACTION_USER_PROMPT),
             ]
         )
         self._session_manager = get_session_manager()
@@ -120,7 +203,7 @@ class GuidanceService:
             },
         )
 
-        content = self._coerce_content(response.model_dump_json())
+        content = self._coerce_content(response)
 
         try:
             return json.loads(content)
@@ -136,12 +219,21 @@ class GuidanceService:
 
     @staticmethod
     def _coerce_content(response: Any) -> str:
+        """Extract content from various response formats."""
         if response is None:
             return "{}"
 
         if isinstance(response, str):
             return response
 
+        # Try dict-like access first (for the new response format)
+        if isinstance(response, dict):
+            content = response.get("content")
+            if content:
+                return str(content)
+            return json.dumps(response)
+
+        # Try attribute access (for object-like responses)
         content = getattr(response, "content", None)
         if isinstance(content, str):
             return content
@@ -161,13 +253,66 @@ class GuidanceService:
                 parts.append(str(part))
             return "".join(parts)
 
-        if isinstance(response, dict):
-            return json.dumps(response)
-
         if content is not None:
             return str(content)
 
         return str(response)
+
+    @staticmethod
+    def _clean_json_response(content: str) -> str:
+        """Clean JSON response by removing markdown code fences."""
+        content = content.strip()
+
+        # Remove markdown code fences if present
+        if content.startswith("```json"):
+            content = content[7:]  # Remove ```json
+        elif content.startswith("```"):
+            content = content[3:]  # Remove ```
+
+        if content.endswith("```"):
+            content = content[:-3]  # Remove closing ```
+
+        return content.strip()
+
+    async def extract_structured_data(
+        self, *, context: str, title: str, pages: int
+    ) -> Dict[str, Any]:
+        """
+        Extract structured data from document context.
+
+        Args:
+            context: Document context with chunk IDs and page numbers
+            title: Document title
+            pages: Number of pages
+
+        Returns:
+            Dict containing structured extraction (summary, dates, financial, quantities, contacts)
+        """
+        chain = self._extraction_prompt | self._client
+        response = await run_in_threadpool(
+            chain.invoke,
+            {
+                "context": context,
+                "title": title,
+                "pages": pages,
+            },
+        )
+
+        # Extract content from response
+        content = self._coerce_content(response)
+        content = self._clean_json_response(content)
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as exc:
+            # Log the actual content for debugging
+            print(
+                f"Failed to parse structured extraction JSON. Content: {content[:500]}..."
+            )
+            raise HTTPException(
+                status_code=502,
+                detail="Model response could not be parsed as JSON for structured extraction.",
+            ) from exc
 
     async def chat(
         self,
