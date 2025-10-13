@@ -120,7 +120,9 @@ class FinancialFigure(BaseModel):
 class ExtractedDataAggregate(BaseModel):
     deadlines: List[DeadlineInfo] = Field(default_factory=list)
     eligibility: List[str] = Field(default_factory=list)
-    financial_figures: List[FinancialFigure] = Field(default_factory=list, alias="financialFigures")
+    financial_figures: List[FinancialFigure] = Field(
+        default_factory=list, alias="financialFigures"
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -148,7 +150,9 @@ class ProcessingResult(BaseModel):
     classification: DocumentClassification
     summary: DocumentSummary
     extracted_data: ExtractedDataAggregate = Field(alias="extractedData")
-    actionable_steps: List[ActionableStep] = Field(default_factory=list, alias="actionableSteps")
+    actionable_steps: List[ActionableStep] = Field(
+        default_factory=list, alias="actionableSteps"
+    )
     pipeline_status: List[PipelineStageStatus] = Field(default_factory=list, alias="pipelineStatus")
 
     model_config = ConfigDict(populate_by_name=True)

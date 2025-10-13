@@ -142,8 +142,12 @@ class DocumentAnalyzer:
 
         categorized_insights = CategorizedInsights(
             critical=[InsightItem(**item) for item in categorized.get("critical", [])],
-            important=[InsightItem(**item) for item in categorized.get("important", [])],
-            informational=[InsightItem(**item) for item in categorized.get("informational", [])],
+            important=[
+                InsightItem(**item) for item in categorized.get("important", [])
+            ],
+            informational=[
+                InsightItem(**item) for item in categorized.get("informational", [])
+            ],
         )
 
         chunk_lookup = {chunk.chunk_id: chunk for chunk in bundle.chunks}
@@ -151,7 +155,9 @@ class DocumentAnalyzer:
         for scored_list in scored_contexts.values():
             for scored in scored_list:
                 chunk_id = scored.chunk.chunk_id
-                score_lookup[chunk_id] = max(score_lookup.get(chunk_id, float("-inf")), scored.score)
+                score_lookup[chunk_id] = max(
+                    score_lookup.get(chunk_id, float("-inf")), scored.score
+                )
 
         categorized_chunks: List[CategorizedChunk] = []
         seen_pairs: Set[Tuple[InsightPriority, str]] = set()
@@ -193,10 +199,7 @@ class DocumentAnalyzer:
                 )
             )
 
-        recommended = [
-            self._build_step(item)
-            for item in next_steps
-        ]
+        recommended = [self._build_step(item) for item in next_steps]
 
         references = []
         for ref in references_payload:
@@ -249,13 +252,18 @@ class DocumentAnalyzer:
             uploadedAt=uploaded_at,
         )
 
-        classification = self._infer_classification(bundle=bundle, legacy=legacy, payload=payload)
+        classification = self._infer_classification(
+            bundle=bundle, legacy=legacy, payload=payload
+        )
 
         sections: List[SectionSummary] = []
         for priority_name, insights in (
             (InsightPriority.critical.value, legacy.categorized_insights.critical),
             (InsightPriority.important.value, legacy.categorized_insights.important),
-            (InsightPriority.informational.value, legacy.categorized_insights.informational),
+            (
+                InsightPriority.informational.value,
+                legacy.categorized_insights.informational,
+            ),
         ):
             for insight in insights:
                 if not insight.label and not insight.description:
@@ -319,7 +327,10 @@ class DocumentAnalyzer:
                     bundle.title,
                     legacy.summary,
                     " ".join(legacy.key_highlights),
-                    " ".join(insight.description for insight in legacy.categorized_insights.critical),
+                    " ".join(
+                        insight.description
+                        for insight in legacy.categorized_insights.critical
+                    ),
                 ],
             )
         ).lower()
@@ -331,7 +342,9 @@ class DocumentAnalyzer:
             elif "compliance" in corpus:
                 raw_category = "Compliance Document"
                 confidence = max(confidence, 0.65)
-            elif any(keyword in corpus for keyword in ["budget", "financial", "finance"]):
+            elif any(
+                keyword in corpus for keyword in ["budget", "financial", "finance"]
+            ):
                 raw_category = "Financial Document"
                 confidence = max(confidence, 0.6)
             else:
@@ -359,7 +372,9 @@ class DocumentAnalyzer:
             subcategories=subcategories,
         )
 
-    def _partition_extracted_data(self, legacy: DocumentAnalysisResponse) -> ExtractedDataAggregate:
+    def _partition_extracted_data(
+        self, legacy: DocumentAnalysisResponse
+    ) -> ExtractedDataAggregate:
         deadlines: List[DeadlineInfo] = []
         eligibility: List[str] = []
         financials: List[FinancialFigure] = []
@@ -371,7 +386,10 @@ class DocumentAnalyzer:
             if not combined:
                 continue
 
-            if any(keyword in lowered for keyword in ["deadline", "due", "submission", "cut-off"]):
+            if any(
+                keyword in lowered
+                for keyword in ["deadline", "due", "submission", "cut-off"]
+            ):
                 deadlines.append(
                     DeadlineInfo(
                         description=point.name or point.value,
@@ -412,11 +430,16 @@ class DocumentAnalyzer:
                     continue
                 if "deadline" not in lowered and "due" not in lowered:
                     continue
-                inferred_date = self._extract_date_string(insight.description or insight.label or "")
+                inferred_date = self._extract_date_string(
+                    insight.description or insight.label or ""
+                )
                 deadlines.append(
                     DeadlineInfo(
-                        description=insight.description or insight.label or "Key deadline",
-                        date=inferred_date or (insight.label or insight.description or ""),
+                        description=insight.description
+                        or insight.label
+                        or "Key deadline",
+                        date=inferred_date
+                        or (insight.label or insight.description or ""),
                         priority="high",
                     )
                 )

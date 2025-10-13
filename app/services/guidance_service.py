@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Any, Dict
+from urllib import response
 
 from fastapi import HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -11,12 +12,20 @@ from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from app.core.config import get_settings
 
 
-_SYSTEM_PROMPT = """You are an expert document analyst helping small nonprofits understand complex grant, finance, and compliance documents. You must:
-- return ONLY valid JSON with double quotes, no markdown fences.
-- organise findings into critical, important, and informational categories.
-- highlight deadlines, eligibility, financial requirements, and follow-up actions.
-- include references back to the provided chunk IDs where possible.
-If information is missing, respond with an empty array for that section."""
+_SYSTEM_PROMPT = """You are an expert document analyst helping small nonprofits understand complex grant, finance, and compliance documents. 
+
+CRITICAL: You MUST return ONLY a valid JSON object. No markdown, no code fences, no explanatory text - just the raw JSON.
+
+Requirements:
+- Return ONLY valid JSON with double quotes for keys and string values
+- Do NOT wrap the JSON in markdown code blocks (no ```json or ```)
+- Do NOT include any text before or after the JSON
+- Organize findings into critical, important, and informational categories
+- Highlight deadlines, eligibility, financial requirements, and follow-up actions
+- Include references back to the provided chunk IDs where possible
+- If information is missing, use an empty array [] for that section
+
+Your entire response should be parseable by JSON.parse()."""
 
 _USER_PROMPT = """Document context:
 {context}
@@ -26,23 +35,23 @@ Document metadata:
 - Total pages: {pages}
 
 Provide a JSON object with the following shape:
-{
+{{
   "summary": string,
   "key_highlights": string[],
-  "categorized_insights": {
+  "categorized_insights": {{
     "critical": InsightItem[],
     "important": InsightItem[],
     "informational": InsightItem[]
-  },
+  }},
   "extracted_data": ExtractedDataPoint[],
   "recommended_next_steps": RecommendedStep[],
   "references": SourceReference[]
-}
+}}
 
-Where InsightItem = {"label": string, "description": string, "source_chunk_id": string | null}
-ExtractedDataPoint = {"name": string, "value": string, "source_chunk_id": string | null}
-RecommendedStep = {"action": string, "priority": "critical" | "important" | "informational", "rationale": string | null, "due_date": string | null, "owner": string | null, "source_chunk_id": string | null}
-SourceReference = {"chunk_id": string, "page_number": number | null, "score": number, "preview": string}
+Where InsightItem = {{"label": string, "description": string, "source_chunk_id": string | null}}
+ExtractedDataPoint = {{"name": string, "value": string, "source_chunk_id": string | null}}
+RecommendedStep = {{"action": string, "priority": "critical" | "important" | "informational", "rationale": string | null, "due_date": string | null, "owner": string | null, "source_chunk_id": string | null}}
+SourceReference = {{"chunk_id": string, "page_number": number | null, "score": number, "preview": string}}
 """
 
 
@@ -52,7 +61,9 @@ class GuidanceService:
     def __init__(self) -> None:
         settings = get_settings()
         if not settings.nvidia_api_key:
-            raise RuntimeError("NVIDIA_API_KEY is not configured for guidance generation.")
+            raise RuntimeError(
+                "NVIDIA_API_KEY is not configured for guidance generation."
+            )
         self._client = ChatNVIDIA(
             model=settings.nvidia_llm_model,
             api_key=settings.nvidia_api_key,
@@ -76,11 +87,16 @@ class GuidanceService:
                 "pages": pages,
             },
         )
-        content = self._coerce_content(response)
+
+        content = self._coerce_content(response.model_dump_json())
 
         try:
             return json.loads(content)
-        except json.JSONDecodeError as exc:  # pragma: no cover - depends on model output
+        except (
+            json.JSONDecodeError
+        ) as exc:  # pragma: no cover - depends on model output
+            # Log the actual content for debugging
+            print(f"Failed to parse JSON. Content: {content[:500]}...")
             raise HTTPException(
                 status_code=502,
                 detail="Model response could not be parsed as JSON.",
