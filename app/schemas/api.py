@@ -153,7 +153,9 @@ class ProcessingResult(BaseModel):
     actionable_steps: List[ActionableStep] = Field(
         default_factory=list, alias="actionableSteps"
     )
-    pipeline_status: List[PipelineStageStatus] = Field(default_factory=list, alias="pipelineStatus")
+    pipeline_status: List[PipelineStageStatus] = Field(
+        default_factory=list, alias="pipelineStatus"
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -166,9 +168,34 @@ class GuidanceDebugPayload(BaseModel):
     total_cost_estimate_usd: Optional[float] = None
 
 
+class ChatRequest(BaseModel):
+    """Request model for chat endpoint."""
+
+    session_id: str = Field(..., description="Session ID from document analysis")
+    question: str = Field(..., description="User's question about the document")
+    additional_context: Optional[str] = Field(
+        None,
+        description="Optional additional context from the document (e.g., specific lines or sections the user wants to reference)",
+        example="From page 5: 'The grant deadline is December 31, 2025'",
+    )
+
+
+class ChatResponse(BaseModel):
+    """Response model for chat endpoint."""
+
+    answer: str = Field(..., description="AI-generated answer to the user's question")
+    session_id: str = Field(..., description="Session ID for continued conversation")
+    conversation_length: int = Field(
+        ..., description="Number of messages in the conversation"
+    )
+
+
 class DocumentAnalysisEnvelope(BaseModel):
     """Top-level response envelope so UI can evolve without breaking changes."""
 
     result: ProcessingResult
+    session_id: Optional[str] = Field(
+        None, description="Chat session ID for follow-up questions"
+    )
     legacy: Optional[DocumentAnalysisResponse] = None
     debug: Optional[GuidanceDebugPayload] = None

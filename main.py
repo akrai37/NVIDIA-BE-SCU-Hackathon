@@ -1,9 +1,11 @@
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile, Body
 from fastapi.middleware.cors import CORSMiddleware
+from typing import Dict, Any
 
 from app.core.config import get_settings
-from app.schemas.api import DocumentAnalysisEnvelope
+from app.schemas.api import DocumentAnalysisEnvelope, ChatRequest, ChatResponse
 from app.services.analysis_service import DocumentAnalyzer
+from app.services.guidance_service import GuidanceService
 
 
 settings = get_settings()
@@ -44,6 +46,10 @@ Currently, no authentication is required for API access. NVIDIA API key is confi
         {
             "name": "documents",
             "description": "Document analysis and processing operations",
+        },
+        {
+            "name": "chat",
+            "description": "Chat and follow-up questions with session management",
         },
     ],
     contact={
@@ -384,3 +390,151 @@ async def analyze_document(
         file_size=len(contents),
         content_type=file.content_type or "application/octet-stream",
     )
+
+
+@app.post(
+    "/v1/chat",
+    tags=["chat"],
+    summary="Chat with document using session",
+    response_description="Answer to user's question with session context",
+    response_model=ChatResponse,
+)
+async def chat_with_document(
+    request: ChatRequest = Body(
+        ...,
+        description="Chat request with session ID, question, and optional additional context",
+    ),
+) -> ChatResponse:
+    """
+    ## Chat with Document
+    
+    Ask follow-up questions about a previously analyzed document using the session ID.
+    The user can optionally provide additional context (e.g., specific lines from the document) to focus the AI's attention.
+    
+    ### Process
+    
+    1. **Maintain Context**: Uses the session ID to access document context and conversation history
+    2. **Additional Context**: Optionally accepts specific text excerpts from the document for focused analysis
+    3. **Answer Questions**: Provides answers based on the document content and any additional context
+    4. **Track History**: Maintains conversation history for contextual responses
+    
+    ### Request Body
+    
+    ```json
+    {
+      "session_id": "uuid-from-document-analysis",
+      "question": "What are the eligibility requirements?",
+      "additional_context": "From page 5: The grant is available to nonprofits with annual budgets under $1M"
+    }
+    ```
+    
+    ### Response
+    
+    ```json
+    {
+      "answer": "Based on the document...",
+      "session_id": "same-session-id",
+      "conversation_length": 3
+    }
+    ```
+    
+    ### Example Usage
+    
+    **Step 1**: Analyze a document and get session ID
+    ```bash
+    RESPONSE=$(curl -X POST "http://localhost:8000/v1/documents/analyze" \\
+         -F "file=@grant.pdf")
+    SESSION_ID=$(echo $RESPONSE | jq -r '.session_id')
+    ```
+    
+    **Step 2**: Ask follow-up questions (basic)
+    ```bash
+    curl -X POST "http://localhost:8000/v1/chat" \\
+         -H "Content-Type: application/json" \\
+         -d '{
+           "session_id": "'$SESSION_ID'",
+           "question": "What is the deadline for this grant?"
+         }'
+    ```
+    
+    **Step 3**: Ask with additional context (focused)
+    ```bash
+    curl -X POST "http://localhost:8000/v1/chat" \\
+         -H "Content-Type: application/json" \\
+         -d '{
+           "session_id": "'$SESSION_ID'",
+           "question": "Can you explain this requirement in detail?",
+           "additional_context": "From page 7: Organizations must demonstrate community impact through measurable outcomes"
+         }'
+    ```
+    
+    ### Features
+    
+    - 🔄 **Session Persistence**: Maintains context across multiple questions
+    - 🧠 **Conversation Memory**: References previous Q&A in responses
+    - 📄 **Document Context**: Always grounded in the analyzed document
+    - 🎯 **Additional Context**: Optionally focus on specific document sections
+    - ⏱️ **Auto-Cleanup**: Sessions expire after 30 minutes of inactivity
+    
+    ### Error Responses
+    
+    - **400**: Session ID required or no document context available
+    - **404**: Session not found or expired
+    - **500**: Processing error
+    """
+    try:
+        guidance_service = GuidanceService()
+        result = await guidance_service.chat(
+            question=request.question,
+            session_id=request.session_id,
+            additional_context=request.additional_context,
+        )
+        return ChatResponse(**result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete(
+    "/v1/chat/session/{session_id}",
+    tags=["chat"],
+    summary="Clear chat session",
+    response_description="Confirmation of session deletion",
+)
+async def clear_chat_session(session_id: str) -> Dict[str, str]:
+    """
+    ## Clear Chat Session
+
+    Delete a chat session and its conversation history.
+
+    ### When to Use
+
+    - User wants to start fresh with the same document
+    - Cleaning up after analysis is complete
+    - Managing active sessions
+
+    ### Response
+
+    ```json
+    {
+      "message": "Session cleared successfully"
+    }
+    ```
+
+    ### Example
+
+    ```bash
+    curl -X DELETE "http://localhost:8000/v1/chat/session/{session_id}"
+    ```
+    """
+    try:
+        guidance_service = GuidanceService()
+        if guidance_service.clear_session(session_id):
+            return {"message": "Session cleared successfully"}
+        else:
+            raise HTTPException(status_code=404, detail="Session not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

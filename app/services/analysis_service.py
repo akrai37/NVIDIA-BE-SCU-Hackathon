@@ -81,6 +81,12 @@ class DocumentAnalyzer:
             pages=bundle.page_count,
         )
 
+        # Create a chat session for follow-up questions
+        session_id = guidance_service.create_session(
+            document_id=bundle.document_id,
+            document_context=merged_context,
+        )
+
         legacy_response = self._to_response(
             bundle=bundle, scored_contexts=scored_contexts, payload=guidance_payload
         )
@@ -94,7 +100,11 @@ class DocumentAnalyzer:
             content_type=content_type,
             uploaded_at=uploaded_at,
         )
-        return DocumentAnalysisEnvelope(result=processing_result, legacy=legacy_response)
+        return DocumentAnalysisEnvelope(
+            result=processing_result,
+            legacy=legacy_response,
+            session_id=session_id,  # Include session ID in response
+        )
 
     def _process_document(self, *, file_bytes: bytes, filename: str) -> DocumentBundle:
         try:
