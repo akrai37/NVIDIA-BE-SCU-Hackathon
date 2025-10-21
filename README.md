@@ -12,6 +12,13 @@ API backend for the NVIDIA Hackathon prototype that delivers real-time document 
 6. **Reason** – NVIDIA Nemotron (`llama-3.1-nemotron-70b-instruct` by default) turns retrieved evidence into structured JSON with critical/important/informational lanes.
 7. **Respond** – FastAPI returns a typed response ready for the frontend to render guidance cards and next steps.
 
+## 🎬 Demo
+
+Watch a walkthrough of the document analysis pipeline in action:
+
+https://github.com/akrai37/NVIDIA-BE-SCU-Hackathon/assets/demo.mp4
+
+
 ## ✅ Prerequisites
 
 - Python 3.13+
