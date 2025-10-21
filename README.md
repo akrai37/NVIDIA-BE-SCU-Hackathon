@@ -16,9 +16,9 @@ API backend for the NVIDIA Hackathon prototype that delivers real-time document 
 
 Watch a walkthrough of the document analysis pipeline in action:
 
-[Watch Demo Video](docs/demo.mp4)
+**[📹 Download Demo Video (15.3 MB)](docs/demo.mp4)**
 
-> **Note:** Place your demo video at `docs/demo.mp4` to display it here. Once committed and pushed to GitHub, the video will be viewable directly in the README.
+> The demo video is stored in this repository at `docs/demo.mp4`. Click the link above to download and view it locally.
 
 ## ✅ Prerequisites
 
