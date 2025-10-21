@@ -71,9 +71,11 @@ Currently, no authentication is required for API access. NVIDIA API key is confi
 # Allow local dev frontends by default.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 analyzer = DocumentAnalyzer()

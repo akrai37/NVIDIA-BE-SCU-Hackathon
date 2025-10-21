@@ -19,7 +19,7 @@ class Settings(BaseModel):
         default=os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
     )
     nvidia_embeddings_model: str = Field(
-        default=os.getenv("NVIDIA_EMBEDDING_MODEL", "nvidia/nv-embedqa-e5-v5")
+        default=os.getenv("NVIDIA_EMBEDDING_MODEL", "nvidia/nv-embed-qa")
     )
     nvidia_llm_model: str = Field(
         default=os.getenv("NVIDIA_LLM_MODEL", "nvidia/llama-3.1-nemotron-70b-instruct")
