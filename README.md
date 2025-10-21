@@ -2,6 +2,10 @@
 
 API backend for the NVIDIA Hackathon prototype that delivers real-time document understanding for nonprofits. Upload a PDF and the service classifies critical information, extracts deadlines and financial data, and suggests action steps using NVIDIA Nemotron models hosted on NIM.
 
+## 🔗 Frontend Repository
+
+Frontend repo: [https://github.com/akrai37/NVIDIA-FE-SCU-Hackathon](https://github.com/akrai37/NVIDIA-FE-SCU-Hackathon)
+
 ## 🧱 Architecture overview
 
 1. **Upload** – UI sends the PDF to `POST /v1/documents/analyze`.
