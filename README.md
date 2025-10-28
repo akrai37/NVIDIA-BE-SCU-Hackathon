@@ -6,6 +6,12 @@ API backend for the NVIDIA Hackathon prototype that delivers real-time document 
 
 Frontend repo: [https://github.com/akrai37/NVIDIA-FE-SCU-Hackathon](https://github.com/akrai37/NVIDIA-FE-SCU-Hackathon)
 
+## 🎬 Demo
+
+Watch a walkthrough of the document analysis pipeline in action:
+
+https://github.com/user-attachments/assets/1ef399ab-19b4-4828-8110-70ff09abbec2
+
 ## 🧱 Architecture overview
 
 1. **Upload** – UI sends the PDF to `POST /v1/documents/analyze`.
@@ -15,13 +21,6 @@ Frontend repo: [https://github.com/akrai37/NVIDIA-FE-SCU-Hackathon](https://gith
 5. **Store & Retrieve** – A lightweight cosine-similarity in-memory vector store powers targeted lookups.
 6. **Reason** – NVIDIA Nemotron (`llama-3.1-nemotron-70b-instruct` by default) turns retrieved evidence into structured JSON with critical/important/informational lanes.
 7. **Respond** – FastAPI returns a typed response ready for the frontend to render guidance cards and next steps.
-
-## 🎬 Demo
-
-Watch a walkthrough of the document analysis pipeline in action:
-
-https://github.com/user-attachments/assets/1ef399ab-19b4-4828-8110-70ff09abbec2
-
 
 ## ✅ Prerequisites
 
